@@ -1,7 +1,17 @@
 '''One layer isn't enough. Adds keys to get to more of them'''
+from micropython import const
+from supervisor import ticks_ms
+
 from kmk.key_validators import layer_key_validator
 from kmk.keys import make_argumented_key
-from kmk.modules.modtap import HoldTap
+from kmk.modules.holdtap import HoldTap
+
+
+class LayerType:
+    '''Defines layer types to be passed on as on_press and on_release kwargs where needed'''
+
+    LT = const(0)
+    TT = const(1)
 
 
 def curry(fn, *args, **kwargs):
@@ -38,8 +48,8 @@ class Layers(HoldTap):
         make_argumented_key(
             validator=layer_key_validator,
             names=('LT',),
-            on_press=curry(self.ht_pressed, key_type='LT'),
-            on_release=curry(self.ht_released, key_type='LT'),
+            on_press=curry(self.ht_pressed, key_type=LayerType.LT),
+            on_release=curry(self.ht_released, key_type=LayerType.LT),
         )
         make_argumented_key(
             validator=layer_key_validator, names=('TG',), on_press=self._tg_pressed
@@ -50,8 +60,8 @@ class Layers(HoldTap):
         make_argumented_key(
             validator=layer_key_validator,
             names=('TT',),
-            on_press=curry(self.ht_pressed, key_type='TT'),
-            on_release=curry(self.ht_released, key_type='TT'),
+            on_press=curry(self.ht_pressed, key_type=LayerType.TT),
+            on_release=curry(self.ht_released, key_type=LayerType.TT),
         )
 
     def _df_pressed(self, key, keyboard, *args, **kwargs):
@@ -118,35 +128,43 @@ class Layers(HoldTap):
         keyboard.active_layers.insert(0, key.meta.layer)
 
     def ht_activate_hold(self, key, keyboard, *args, **kwargs):
-        self._mo_pressed(key, keyboard, *args, **kwargs)
+        key_type = kwargs['key_type']
+        if key_type == LayerType.LT:
+            self._mo_released(key, keyboard, *args, **kwargs)
+        elif key_type == LayerType.TT:
+            self._tg_pressed(key, keyboard, *args, **kwargs)
 
     def ht_deactivate_hold(self, key, keyboard, *args, **kwargs):
-        self._mo_released(key, keyboard, *args, **kwargs)
+        key_type = kwargs['key_type']
+        if key_type == LayerType.LT:
+            self._mo_released(key, keyboard, *args, **kwargs)
+        elif key_type == LayerType.TT:
+            self._tg_pressed(key, keyboard, *args, **kwargs)
 
     def ht_activate_tap(self, key, keyboard, *args, **kwargs):
         key_type = kwargs['key_type']
-        if key_type == 'LT':
+        if key_type == LayerType.LT:
             keyboard.hid_pending = True
             keyboard.keys_pressed.add(key.meta.kc)
-        elif key_type == 'TT':
+        elif key_type == LayerType.TT:
             self._tg_pressed(key, keyboard, *args, **kwargs)
 
     def ht_deactivate_tap(self, key, keyboard, *args, **kwargs):
         key_type = kwargs['key_type']
-        if key_type == 'LT':
+        if key_type == LayerType.LT:
             keyboard.hid_pending = True
             keyboard.keys_pressed.discard(key.meta.kc)
 
     def ht_activate_on_interrupt(self, key, keyboard, *args, **kwargs):
         key_type = kwargs['key_type']
-        if key_type == 'LT':
+        if key_type == LayerType.LT:
             self.ht_activate_tap(key, keyboard, *args, **kwargs)
-        elif key_type == 'TT':
+        elif key_type == LayerType.TT:
             self.ht_activate_hold(key, keyboard, *args, **kwargs)
 
     def ht_deactivate_on_interrupt(self, key, keyboard, *args, **kwargs):
         key_type = kwargs['key_type']
-        if key_type == 'LT':
+        if key_type == LayerType.LT:
             self.ht_deactivate_tap(key, keyboard, *args, **kwargs)
-        elif key_type == 'TT':
+        elif key_type == LayerType.TT:
             self.ht_deactivate_hold(key, keyboard, *args, **kwargs)
